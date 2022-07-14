@@ -1,0 +1,88 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: goserver-env
+data:
+  NAME: "Paulo R"
+  AGE: "20"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: goserver-secret
+type: Opaque
+data:
+  USER: "cGF1bG8K"
+  PASSWORD: "MTIzNDU2Cg=="
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: configmap-family
+data:
+   members: "Paulo, Julia, João, Raphael, Vanda"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: goserver
+  labels:
+    app: goserver
+spec:
+  selector:
+    matchLabels:
+      app: goserver
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: goserver
+    spec:
+      containers: # Especifica containers a serem utilizados
+        - name: goserver
+          image: paulopkl/go-without-install:v10 # imagem Docker do APP
+
+          startupProbe: # HealthCheck para ver se o container caiu. Desvia o Tráfego
+            httpGet: # Requisições HTTP
+              path: /healthz
+              port: 8080
+            periodSeconds: 3 # Quanto em quanto tempo faz a verificação
+            failureThreshold: 30 # Tentativas de requisição dando ERRO
+
+          readinessProbe: # HealthCheck para ver se o container caiu. Desvia o Tráfego
+            httpGet: # Requisições HTTP
+              path: /healthz
+              port: 8080
+            periodSeconds: 3 # Quanto em quanto tempo faz a verificação
+            failureThreshold: 1 # Tentativas de requisição dando ERRO
+            # initialDelaySeconds: 10 # Aguarde essa quantidade de segundos para iniciar
+
+          livenessProbe: # HealthCheck para ver se o container caiu. Reinicia o Container
+            httpGet: # Requisições HTTP
+              path: /healthz
+              port: 8080
+            periodSeconds: 5 # Quanto em quanto tempo faz a verificação
+            failureThreshold: 1 # Quando der essa quantidade de ERRO, reinicia
+            timeoutSeconds: 1 # Tempo máximo da requisição
+            successThreshold: 1 # Tentativas de requisição dando SUCESSO
+            # initialDelaySeconds: 10
+
+          envFrom: # Especifica de onde vem as variáveis ambientes, puxando pelo seletor
+            - configMapRef: # Referencia um ConfigMap
+                name: goserver-env
+            - secretRef: # Referencia um Secret
+                name: goserver-secret
+
+          volumeMounts: # Especifica os volumes a serem utilizados, puxando pelo seletor
+            - mountPath: "/usr/app/myfamily"
+              name: config-volume
+              readOnly: true
+
+      volumes: # Cria um volume puxando um ConfigMap
+        - name: config-volume
+          configMap:
+            name: configmap-family
+            items:
+              - key: members
+                path: "family.txt"
+      
